@@ -1,0 +1,123 @@
+= Отчет по лабораторной работе (датчик температуры)
+
+== Задание:
+
+Измерить температуру микроконтроллера
+с помощью встроенного датчика темпертуры.
+
+== Выполнение задания:
+
+Первым делом был подключен внешний источник питания HSE.
+Затем подключили АЦП к источнику тактирования.
+
+Для использования датчика температуры необходимо:
+
+- Выбрать входной канал (для STM32F411RE это каналы ADC1_IN16 и ADC1_IN18)
+
+
+
+- Включить датчик температуры, установив бит TSVREFE, в регистре
+ADC_Common_CCR.
+
+- Настроить АЦП
+
+-- Установить разрядность в регистре ADC_CR1. Установим требуемое
+значение 12 бит.
+
+-- Установить режим одиночного преобразования
+
+-- Установить количество измерений 1 в регистре ADC1_SQR1,
+используя для этого бит L.
+
+-- Выбрать канал для первого преобразования.Выберем 18 канал.
+
+-- Установить скорость дискретизации. Установим требуемое
+значение 84 цикла.
+
+-- Включить АЦП с помощью установки бита ADON.
+
+-- Запустить АЦП на преобразование с помощью установки бита  SWSTART.
+
+-- Дождаться готовности бита EOC.
+
+- Считать результирующие данные V__sense __ в регистре данных АЦП. Для
+получения значений температуры в градусах необходимо расчитать
+данные с АЦП по определенной формуле t={( V__sense __-V__25__)/Avg_Slope}+25.
+Значения V__25__ и Avg_Slope выбираются в соответствии с
+документацией на микроконтроллер.В нашем случае эти значения равны
+0,76 В и 0,0025 В/0С соответственно. Таким образом Приведенная выше формула
+будет преобразована как t={( V__sense __-0,76)/0,0025}+25.
+
+- Данные полученные датчиком отображены в терминале I/O.
+
+== Код программы
+
+[course, cpp]
+
+--------
+#include "rccregisters.hpp"
+#include "gpiocregisters.hpp"
+#include "gpioaregisters.hpp"
+#include <iostream>
+#include <bitset>
+#include "nvicregisters.hpp"
+#include "adc1registers.hpp"
+#include "adccommonregisters.hpp"
+
+
+extern "C"
+{
+  int __low_level_init(void)
+    {
+      RCC::CR::HSEON::On::Set();
+      while(!RCC::CR::HSERDY::Ready::IsSet())
+       {
+       }
+      RCC::CFGR::SW::Hse::Set();
+      while(!RCC::CFGR::SWS::Hse::IsSet())
+       {
+       }
+
+      RCC::CR::HSION::Off::Set();
+      RCC::APB2ENR::ADC1EN::Enable::Set();
+      ADC_Common::CCR::TSVREFE::Value1::Set();
+      ADC1::CR1::RES::Bit12::Set();
+      ADC1::CR2::EOCS::Regular::Set();
+      ADC1::CR2::CONT::Single::Set();
+      ADC1::SQR1::L::conversions2::Set();
+      ADC1::SQR3::SQ1::Value18::Set();
+      ADC1::SMPR2::Write(4U);
+      ADC1::CR2::ADON::Enable::Set();
+      return 1;
+    }
+}
+
+int main()
+{
+  for(;;)
+   {
+     ADC1::CR2::SWSTART::Start::Set();
+     while(ADC1::SR::EOC::NotReady::IsSet())
+      {
+      }
+     float b = (ADC1::DR::DATA::Get())*(3.3/4096);
+     float a = ((b-0.76)/0.0025)+25;
+     std::cout « a « std::endl;
+   }
+  return 0;
+}
+--------
+
+
+== Выходные значения датчика:
+
+- Значения датчика при комнатной температуре:
+
+image::https://github.com/musenzovakhomenko/temperature/blob/main/comnatn.jpg[]
+
+- Значения датчика при нагреве рукой:
+
+image::https://github.com/musenzovakhomenko/temperature/blob/main/nagrev.jpg[]
+
+
+
